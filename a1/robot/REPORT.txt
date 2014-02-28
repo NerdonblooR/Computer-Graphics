@@ -1,0 +1,15 @@
+The first thing I do is to estimate the size (including length and width)of each part of the robot.
+These predefined sizes make it much more convinient to do translation and scaling.
+
+When referring to the actual drawing part, the transformation always starts with translation to 
+the position of joint(for the convinience of rotation ). By setting the center of the body to be
+the actual origin, the position of joints associate with heads and legs can be described in terms
+of the width and length of the body. After the translation is done, the next step is scaling the 
+coordinates with the size of the part to be drawn. Finally, the polygon of that part is drawn in
+this new coordinates. The sequence of drawing follows one principle which is drawing bottom part first. 
+
+For the animation part, some parts of the robot rotate together. For example,
+head, eyes and neck. In order to keep the consistency of each part during
+animation, all these parts must be drawn in the same coordinate. If some of them
+have animation as well(hand or forearm), then this animation is also described 
+with respect to the same coordinate. 
