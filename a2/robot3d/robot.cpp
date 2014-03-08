@@ -66,6 +66,7 @@ int Win[2];					// window (x,y) size
 GLUI* glui_joints;			// Glui window with joint controls
 GLUI* glui_keyframe;		// Glui window with keyframe controls
 GLUI* glui_render;			// Glui window for render style
+GLUI* glui_light;           //Glui window for light
 
 char msg[256];				// String used for status message
 GLUI_StaticText* status;	// Status message ("Status: <msg>")
@@ -88,7 +89,7 @@ const GLdouble NEAR_CLIP   = 0.1;
 const GLdouble FAR_CLIP    = 1000.0;
 
 // Render settings
-enum { WIREFRAME, SOLID, OUTLINED };	// README: the different render styles
+enum { WIREFRAME, SOLID, OUTLINED, METALIC, MATTE};	// README: the different render styles
 int renderStyle = WIREFRAME;			// README: the selected render style
 
 // Animation settings
@@ -119,6 +120,21 @@ Timer* frameRateTimer;
 const float TIME_MIN = 0.0;
 const float TIME_MAX = 10.0;	// README: specifies the max time of the animation
 const float SEC_PER_FRAME = 1.0 / 60.0;
+
+//Light Source Settings
+const float R_MAX = 120.0;
+const float R_MIN = 60.0;
+const float ANGLE_MAX =  180.0;
+const float ANGLE_MIN = -180.0;
+
+float radius = 60.0;
+float angle = 0.0;
+//position of light
+GLfloat pos[4] = {0.0,60,20.0};
+//the x coordinate of lignt
+float light_x = 0;
+//the y coordinate of lignt
+float light_y = 0;
 
 // Joint settings
 
@@ -154,6 +170,8 @@ const float ROOT_ROTATE_Z_MIN    = -180.0;
 const float ROOT_ROTATE_Z_MAX    =  180.0;
 const float HEAD_MIN             = -180.0;
 const float HEAD_MAX             =  180.0;
+const float NECK_MIN             = -45.0;
+const float NECK_MAX             =  45.0;
 const float SHOULDER_PITCH_MIN   = -45.0;
 const float SHOULDER_PITCH_MAX   =  45.0;
 const float SHOULDER_YAW_MIN     = -45.0;
@@ -166,14 +184,10 @@ const float HIP_YAW_MIN          = -45.0;
 const float HIP_YAW_MAX          =  45.0;
 const float HIP_ROLL_MIN         = -45.0;
 const float HIP_ROLL_MAX         =  45.0;
-const float BEAK_MIN             =  0.0;
-const float BEAK_MAX             =  1.0;
-const float ELBOW_MIN            =  0.0;
-const float ELBOW_MAX            = 75.0;
-const float KNEE_MIN             =  0.0;
-const float KNEE_MAX             = 75.0;
-
-
+const float ELBOW_MIN            = -45.0;
+const float ELBOW_MAX            =  45.0;
+const float LEN_MIN            =  1.0;
+const float LEN_MAX            =  2.0;
 // ***********  FUNCTION HEADER DECLARATIONS ****************
 
 
@@ -199,6 +213,7 @@ Vector getInterpolatedJointDOFS(float time);
 void drawCube();
 void drawCylinder();
 void drawCubeWithRenderStyle(int render);
+void drawCylinderWithRenderStyle(int render);
 void drawHead();
 void drawBody();
 void drawArm(int side);
@@ -313,13 +328,16 @@ void updateKeyframeButton(int)
 	///////////////////////////////////////////////////////////
 
 	// Get the keyframe ID from the UI
-	int keyframeID = 0;
+	int keyframeID = joint_ui_data->getID();
 
 	// Update the 'maxValidKeyframe' index variable
 	// (it will be needed when doing the interpolation)
-
+	if(keyframeID > maxValidKeyframe){
+		maxValidKeyframe = keyframeID;
+	}
 	// Update the appropriate entry in the 'keyframes' array
 	// with the 'joint_ui_data' data
+	keyframes[keyframeID] = *joint_ui_data;
 
 	// Let the user know the values have been updated
 	sprintf(msg, "Status: Keyframe %d updated successfully", keyframeID);
@@ -518,13 +536,20 @@ void initGlui()
 	glui_spinner = glui_joints->add_spinner_to_panel(glui_panel, "head:", GLUI_SPINNER_FLOAT, joint_ui_data->getDOFPtr(Keyframe::HEAD));
 	glui_spinner->set_float_limits(HEAD_MIN, HEAD_MAX, GLUI_LIMIT_CLAMP);
 	glui_spinner->set_speed(SPINNER_SPEED);
-
-	// Create controls to specify beak
-	glui_panel = glui_joints->add_panel("Beak");
-
-	glui_spinner = glui_joints->add_spinner_to_panel(glui_panel, "beak:", GLUI_SPINNER_FLOAT, joint_ui_data->getDOFPtr(Keyframe::BEAK));
-	glui_spinner->set_float_limits(BEAK_MIN, BEAK_MAX, GLUI_LIMIT_CLAMP);
+	glui_spinner = glui_joints->add_spinner_to_panel(glui_panel, "neck:", GLUI_SPINNER_FLOAT, joint_ui_data->getDOFPtr(Keyframe::NECK));
+	glui_spinner->set_float_limits(NECK_MIN, NECK_MAX, GLUI_LIMIT_CLAMP);
 	glui_spinner->set_speed(SPINNER_SPEED);
+	glui_spinner = glui_joints->add_spinner_to_panel(glui_panel, "face:", GLUI_SPINNER_FLOAT, joint_ui_data->getDOFPtr(Keyframe::FACE));
+	glui_spinner->set_float_limits(NECK_MIN, NECK_MAX, GLUI_LIMIT_CLAMP);
+	glui_spinner->set_speed(SPINNER_SPEED);
+
+
+	// // Create controls to specify beak
+	// glui_panel = glui_joints->add_panel("Beak");
+
+	// glui_spinner = glui_joints->add_spinner_to_panel(glui_panel, "beak:", GLUI_SPINNER_FLOAT, joint_ui_data->getDOFPtr(Keyframe::BEAK));
+	// glui_spinner->set_float_limits(BEAK_MIN, BEAK_MAX, GLUI_LIMIT_CLAMP);
+	// glui_spinner->set_speed(SPINNER_SPEED);
 
 
 	glui_joints->add_column(false);
@@ -545,9 +570,13 @@ void initGlui()
 	glui_spinner->set_float_limits(SHOULDER_ROLL_MIN, SHOULDER_ROLL_MAX, GLUI_LIMIT_CLAMP);
 	glui_spinner->set_speed(SPINNER_SPEED);
 
-	glui_spinner = glui_joints->add_spinner_to_panel(glui_panel, "elbow:", GLUI_SPINNER_FLOAT, joint_ui_data->getDOFPtr(Keyframe::R_ELBOW));
+	glui_spinner = glui_joints->add_spinner_to_panel(glui_panel, "elbow_pitch:", GLUI_SPINNER_FLOAT, joint_ui_data->getDOFPtr(Keyframe::R_ELBOW_PITCH));
 	glui_spinner->set_float_limits(ELBOW_MIN, ELBOW_MAX, GLUI_LIMIT_CLAMP);
 	glui_spinner->set_speed(SPINNER_SPEED);
+
+	glui_spinner = glui_joints->add_spinner_to_panel(glui_panel, "elbow_len:", GLUI_SPINNER_FLOAT, joint_ui_data->getDOFPtr(Keyframe::R_ELBOW_LEN));
+	glui_spinner->set_float_limits(LEN_MIN, LEN_MAX, GLUI_LIMIT_CLAMP);
+	glui_spinner->set_speed(SPINNER_SPEED*10);
 
 	// Create controls to specify left arm
 	glui_panel = glui_joints->add_panel("Left arm");
@@ -564,10 +593,13 @@ void initGlui()
 	glui_spinner->set_float_limits(SHOULDER_ROLL_MIN, SHOULDER_ROLL_MAX, GLUI_LIMIT_CLAMP);
 	glui_spinner->set_speed(SPINNER_SPEED);
 
-	glui_spinner = glui_joints->add_spinner_to_panel(glui_panel, "elbow:", GLUI_SPINNER_FLOAT, joint_ui_data->getDOFPtr(Keyframe::L_ELBOW));
+	glui_spinner = glui_joints->add_spinner_to_panel(glui_panel, "elbow_pitch:", GLUI_SPINNER_FLOAT, joint_ui_data->getDOFPtr(Keyframe::L_ELBOW_PITCH));
 	glui_spinner->set_float_limits(ELBOW_MIN, ELBOW_MAX, GLUI_LIMIT_CLAMP);
 	glui_spinner->set_speed(SPINNER_SPEED);
 
+	glui_spinner = glui_joints->add_spinner_to_panel(glui_panel, "elbow_len:", GLUI_SPINNER_FLOAT, joint_ui_data->getDOFPtr(Keyframe::L_ELBOW_LEN));
+	glui_spinner->set_float_limits(LEN_MIN, LEN_MAX, GLUI_LIMIT_CLAMP);
+	glui_spinner->set_speed(SPINNER_SPEED*10);
 
 	glui_joints->add_column(false);
 
@@ -587,10 +619,6 @@ void initGlui()
 	glui_spinner->set_float_limits(HIP_ROLL_MIN, HIP_ROLL_MAX, GLUI_LIMIT_CLAMP);
 	glui_spinner->set_speed(SPINNER_SPEED);
 
-	glui_spinner = glui_joints->add_spinner_to_panel(glui_panel, "knee:", GLUI_SPINNER_FLOAT, joint_ui_data->getDOFPtr(Keyframe::R_KNEE));
-	glui_spinner->set_float_limits(KNEE_MIN, KNEE_MAX, GLUI_LIMIT_CLAMP);
-	glui_spinner->set_speed(SPINNER_SPEED);
-
 	// Create controls to specify left leg
 	glui_panel = glui_joints->add_panel("Left leg");
 
@@ -606,11 +634,6 @@ void initGlui()
 	glui_spinner->set_float_limits(HIP_ROLL_MIN, HIP_ROLL_MAX, GLUI_LIMIT_CLAMP);
 	glui_spinner->set_speed(SPINNER_SPEED);
 
-	glui_spinner = glui_joints->add_spinner_to_panel(glui_panel, "knee:", GLUI_SPINNER_FLOAT, joint_ui_data->getDOFPtr(Keyframe::L_KNEE));
-	glui_spinner->set_float_limits(KNEE_MIN, KNEE_MAX, GLUI_LIMIT_CLAMP);
-	glui_spinner->set_speed(SPINNER_SPEED);
-
-
 	///////////////////////////////////////////////////////////
 	// TODO (for controlling light source position & additional
 	//      rendering styles):
@@ -622,6 +645,14 @@ void initGlui()
 
 	//
 	// ***************************************************
+	glui_light = GLUI_Master.create_glui("Light Source", 0, 500, Win[1]+64);
+	glui_panel = glui_light->add_panel("", GLUI_PANEL_NONE);
+	glui_spinner = glui_light->add_spinner_to_panel(glui_panel, "Radius", GLUI_SPINNER_FLOAT, &radius);
+	glui_spinner->set_float_limits(R_MIN, R_MAX, GLUI_LIMIT_CLAMP);
+	glui_spinner->set_speed(SPINNER_SPEED*10);
+	glui_spinner = glui_light->add_spinner_to_panel(glui_panel, "Angle", GLUI_SPINNER_FLOAT, &angle);
+	glui_spinner->set_float_limits(ANGLE_MIN, ANGLE_MAX, GLUI_LIMIT_CLAMP);
+	glui_spinner->set_speed(SPINNER_SPEED);	
 
 
 	// Create GLUI window (keyframe controls) ************
@@ -677,6 +708,8 @@ void initGlui()
 	glui_render->add_radiobutton_to_group(glui_radio_group, "Wireframe");
 	glui_render->add_radiobutton_to_group(glui_radio_group, "Solid");
 	glui_render->add_radiobutton_to_group(glui_radio_group, "Solid w/ outlines");
+	glui_render->add_radiobutton_to_group(glui_radio_group, "Metalic");
+	glui_render->add_radiobutton_to_group(glui_radio_group, "Matte");
 	//
 	// ***************************************************
 
@@ -685,6 +718,7 @@ void initGlui()
 	glui_joints->set_main_gfx_window(windowID);
 	glui_keyframe->set_main_gfx_window(windowID);
 	glui_render->set_main_gfx_window(windowID);
+	glui_light->set_main_gfx_window(windowID);
 }
 
 
@@ -865,6 +899,27 @@ void display(void)
 	//
 	glPushMatrix();
 
+		//the x coordinate of lignt
+		light_x = radius*cos(angle/180*PI);
+		//the y coordinate of lignt
+		light_y = radius*sin(angle/180*PI);
+		//the vector of light position;
+		pos[0] = light_x;
+		pos[1] = light_y;
+		//the vector represent the color;
+		GLfloat ambient[4] = { 0.2f, 0.2f, 0.2f, 1.0f };
+ 		GLfloat diffuse[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+		GLfloat specular[4] ={ 1.0f, 1.0f, 1.0f, 1.0f };
+	
+	//set light position
+	glLightfv(GL_LIGHT0,GL_POSITION,pos);
+	//set ambient
+	glLightfv(GL_LIGHT0,GL_AMBIENT,ambient);
+	//set diffuse
+	glLightfv(GL_LIGHT0,GL_DIFFUSE,diffuse);
+	//set specular
+	glLightfv(GL_LIGHT0,GL_SPECULAR,specular);
+
 		// setup transformation for body part
 		glTranslatef(joint_ui_data->getDOF(Keyframe::ROOT_TRANSLATE_X),
 					 joint_ui_data->getDOF(Keyframe::ROOT_TRANSLATE_Y),
@@ -876,9 +931,6 @@ void display(void)
         setRenderstyle(renderStyle);
 		// determine render style and set glPolygonMode appropriately
 		// draw body part
-		glColor3f(1.0, 1.0, 1.0);
-
-		drawCylinder();
 
 		glPushMatrix();
 			drawHead();
@@ -928,10 +980,17 @@ void display(void)
     glutSwapBuffers();
 }
 
+/*helper function to draw the head*/
 void drawHead(){
 	glTranslatef(0.0,1.0,0.0);
-	glRotatef(joint_ui_data->getDOF(Keyframe::HEAD), 0.0, 1.0, 0.0);
-	
+	glRotatef(joint_ui_data->getDOF(Keyframe::NECK), 0.0, 0.0, 1.0);
+
+	glPushMatrix();
+		glTranslatef(0.0,0.0,-0.5);
+		glScalef(0.3,0.3,1.0);
+		drawCylinderWithRenderStyle(renderStyle);
+	glPopMatrix();
+
 	glPushMatrix();
 		glTranslatef(0.0,0.5,0.0);
 		glScalef(0.25,0.5,0.25);
@@ -940,34 +999,77 @@ void drawHead(){
 
 	glPushMatrix();
 		glTranslatef(0.0,1.3,0.0);
+		glRotatef(joint_ui_data->getDOF(Keyframe::HEAD), 0.0, 1.0, 0.0);
+		glRotatef(joint_ui_data->getDOF(Keyframe::FACE), 1.0, 0.0, 0.0);
+		glPushMatrix();
+			glTranslatef(0.5,0.0,-0.4);
+			glScalef(0.6,0.6,1.0);
+			drawCylinderWithRenderStyle(renderStyle);
+		glPopMatrix();
+		glPushMatrix();
+			glTranslatef(-0.5,0.0,-0.4);
+			glScalef(0.6,0.6,1.0);
+			drawCylinderWithRenderStyle(renderStyle);
+		glPopMatrix();
+
 		glScalef(1.0,0.3,0.5);
 		drawCubeWithRenderStyle(renderStyle);
 	glPopMatrix();
 }
 
+/*helper function to draw the body*/
 void drawBody(){
 	glScalef(0.5,1.0,0.5);
 	drawCubeWithRenderStyle(renderStyle);
 }
 
+/*helper function to draw the arm*/
 void drawArm(int side){
+	/* 3 DOFs of arm joint*/
+	int pitch,yaw,roll;
+	/* elbow len and DOF */
+	int len, e_pitch;
 	glTranslatef(side*0.5,0.2,0.0);
+	/* choose the joint based on side*/
+	e_pitch = (side == 1)? Keyframe::R_ELBOW_PITCH:Keyframe::L_ELBOW_PITCH;
+	pitch 	= (side == 1)? Keyframe::R_SHOULDER_PITCH:Keyframe::L_SHOULDER_PITCH;
+	roll  	= (side == 1)? Keyframe::R_SHOULDER_ROLL:Keyframe::L_SHOULDER_ROLL;
+	yaw   	= (side == 1)? Keyframe::R_SHOULDER_YAW:Keyframe::L_SHOULDER_YAW;
+	len   	= (side == 1)? Keyframe::R_ELBOW_LEN:Keyframe::L_ELBOW_LEN;
+
+
+	glRotatef(joint_ui_data->getDOF(pitch), 0.0, 0.0, 1.0);
+	glRotatef(joint_ui_data->getDOF(roll), 1.0, 0.0, 0.0);
+	glRotatef(joint_ui_data->getDOF(yaw), 0.0, 1.0, 0.0);
+
+	glPushMatrix();
+		glTranslatef(0.0,0.0,-0.5);
+		glScalef(0.3,0.3,1.0);
+		drawCylinderWithRenderStyle(renderStyle);
+	glPopMatrix();
 	glPushMatrix();
 		glTranslatef(side*0.8,0.0,0.0);
+		glPushMatrix();
+			glTranslatef(side*0.8,0.0,-0.25);
+			glScalef(0.3,0.3,0.5);
+			drawCylinderWithRenderStyle(renderStyle);
+		glPopMatrix();
 		glScalef(0.8,0.25,0.25);
 		drawCubeWithRenderStyle(renderStyle);
 		glScalef(1.0,4,4);
 		glPushMatrix();
 			glTranslatef(side*1,0.0,0.0);
+			glRotatef(joint_ui_data->getDOF(e_pitch), 0.0, 0.0, 1.0);
 			glPushMatrix();
 				glTranslatef(side*0.5,0.0,0.0);
-				glScalef(0.5,0.25,0.25);
+				glScalef(0.5*joint_ui_data->getDOF(len),0.25,0.25);
 				drawCubeWithRenderStyle(renderStyle);
 			glPopMatrix();
 		glPopMatrix();
 	glPopMatrix();
 }
 
+/*helper function to draw hip*/
 void drawHip(){
 	glTranslatef(0.0,-1.0,0.0);
 	//glRotatef(joint_ui_data->getDOF(Keyframe::HEAD), 0.0, 1.0, 0.0);
@@ -979,14 +1081,31 @@ void drawHip(){
 	glPopMatrix();
 }
 
+/*helper function to draw the leg*/
 void drawLeg(int side){
+	/* 3 DOFS of leg*/
+	int pitch,roll,yaw;
+	/* choose the frame according to side */
+	pitch 	= (side == 1)? Keyframe::R_HIP_PITCH:Keyframe::L_HIP_PITCH;
+	roll  	= (side == 1)? Keyframe::R_HIP_ROLL:Keyframe::L_HIP_ROLL;
+	yaw   	= (side == 1)? Keyframe::R_HIP_YAW:Keyframe::L_HIP_YAW;
+
 	glTranslatef(side*1.2,-1.3,0.0);
+
+	glRotatef(joint_ui_data->getDOF(pitch), 0.0, 0.0, 1.0);
+	glRotatef(joint_ui_data->getDOF(roll), 1.0, 0.0, 0.0);
+	glRotatef(joint_ui_data->getDOF(yaw), 0.0, 1.0, 0.0);
+
+	glPushMatrix();
+		glTranslatef(0.0,0.0,-0.5);
+		glScalef(0.3,0.3,1.0);
+		drawCylinderWithRenderStyle(renderStyle);
+	glPopMatrix();
 	glPushMatrix();
 		glTranslatef(side*0.25,-0.8,0.0);
 		glScalef(0.25,0.8,0.25);
 		drawCubeWithRenderStyle(renderStyle);
 	glPopMatrix();
-
 }
 
 
@@ -994,74 +1113,113 @@ void drawLeg(int side){
 void drawCubeWithRenderStyle(int render){
     switch(render){
          case WIREFRAME:
-            glPolygonMode(GL_FRONT,GL_LINE);
+            glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);
             glColor3f(0.0, 0.0, 0.0);
             drawCube();
         	break;
+
          case OUTLINED:
-             glPolygonMode(GL_FRONT,GL_FILL); 
-             glColor3f(0.5, 0.5,0.5);
-             drawCube();
-             //glEnable(GL_POLYGON_OFFSET_LINE);
-             glScalef(1.003,1.003,1.003);
-             glPolygonMode(GL_FRONT,GL_LINE);
-             glColor3f(0.0, 0.0, 0.0);
-             drawCube();
+         	/* render GL_FILL with a larger polygon offset
+			 * render GL_lINE afterwards
+         	 */	
+         	glPolygonMode(GL_FRONT_AND_BACK,GL_FILL); 
+         	glEnable(GL_POLYGON_OFFSET_FILL); 
+         	glPolygonOffset( 1, 1 );
+            glColor3f(0.5, 0.5,0.5);
+            drawCube();
+            glDisable(GL_POLYGON_OFFSET_FILL);
 
-             break;
+            glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);
+            glColor3f(0.0, 0.0, 0.0);
+            drawCube();
+            break;
+
          default:
-             glPolygonMode(GL_FRONT,GL_FILL);
-             glColor3f(0.5, 0.5, 0.5);
-             drawCube();
-             break;
+            glPolygonMode(GL_FRONT,GL_FILL);
+            glColor3f(0.5, 0.5, 0.5);
+            drawCube();
+            break;
     }
- 
- 
 }
-
+//helper function to draw object according to a particular render style
+void drawCylinderWithRenderStyle(int render){
+    switch(render){
+         case WIREFRAME:
+            glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);
+            glColor3f(0.0, 0.0, 0.0);
+        	drawCylinder();
+            break;
+         case OUTLINED:
+         	/* render GL_FILL with a larger polygon offset
+			 * render GL_lINE afterwards
+         	 */	
+         	glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
+         	glEnable(GL_POLYGON_OFFSET_FILL); 
+         	glPolygonOffset( 1, 1 );
+            glColor3f(0.5, 0.5,0.5);
+            drawCylinder();
+            glDisable(GL_POLYGON_OFFSET_FILL);
+             
+            glPolygonMode(GL_FRONT,GL_LINE);
+            glColor3f(0.0, 0.0, 0.0);
+            drawCylinder();
+            break;
+         default:
+            glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
+            glColor3f(0.5, 0.5, 0.5);
+            drawCylinder();
+            break;
+    }
+}
 //helper function to set approporiate render style
 void setRenderstyle(int render){
-    GLfloat object_color[4] = {0.5,0.5,0.5,1};
+	//silver material
+	GLfloat meta_ambient[4]  = { 0.23125f, 0.23125f, 0.23125f, 1.0f };
+	GLfloat meta_diffuse[4]  = { 0.2775f, 0.2775f, 0.2775f, 1.0f };
+	GLfloat meta_specular[4] = { 0.773911f, 0.773911f, 0.773911f, 1.0f };
+	GLfloat meta_shiness[]   = { 51.6f};
+
+	//red plastic
+	GLfloat mat_ambient[4]  = { 0.05f,0.0f,0.0f,1.0f };
+	GLfloat mat_diffuse[4]  = { 0.5f,0.4f,0.4f,1.0f };
+	GLfloat mat_specular[4] = { 0.7f,0.04f,0.04f,1.0f };
+	GLfloat mat_shiness[]   = { 0.078125f};
+
     switch(render)
     {
+    	
         case WIREFRAME:
-             glDisable(GL_LIGHTING);
-             glEnable(GL_CULL_FACE);
-             glEnable(GL_DEPTH_TEST);
-             glDisable(GL_POLYGON_OFFSET_LINE);
-        break;
+        	glDisable(GL_LIGHTING);
+        	break;
         case SOLID:
-             glDisable(GL_LIGHTING);
-             glEnable(GL_CULL_FACE);
-             glEnable(GL_DEPTH_TEST);
-             glDisable(GL_POLYGON_OFFSET_LINE);
-             break;
+        	glDisable(GL_LIGHTING);
+            break;
         case OUTLINED:
-             glDisable(GL_LIGHTING);
-             glEnable(GL_CULL_FACE);
-             glEnable(GL_DEPTH_TEST);
-             break;
+        	glDisable(GL_LIGHTING);
+            glEnable(GL_DEPTH_TEST);
+            break;
  
-        // case METALLIC:
-        //     glEnable(GL_LIGHTING);
-        //     glEnable(GL_LIGHT0);
-        //     glEnable(GL_CULL_FACE);
-        //     glEnable(GL_DEPTH_TEST);
-        //     glDisable(GL_POLYGON_OFFSET_LINE); 
-        //     glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT,object_color);
-        //     glMaterialf(GL_FRONT_AND_BACK,GL_SHININESS,0.0);
-        // break;
+        case METALIC:
+        	glEnable(GL_NORMALIZE);
+            glEnable(GL_LIGHTING);
+            glEnable(GL_LIGHT0);
+            glEnable(GL_DEPTH_TEST);
+            glMaterialfv(GL_FRONT,GL_AMBIENT,meta_ambient);
+            glMaterialfv(GL_FRONT,GL_DIFFUSE,meta_diffuse);
+            glMaterialfv(GL_FRONT,GL_SPECULAR,meta_specular);
+            glMaterialfv(GL_FRONT,GL_SHININESS,meta_shiness);
+        break;
 
-        // case MATTE:
-        //     glEnable(GL_LIGHTING);
-        //     glEnable(GL_LIGHT0);
-        //     glEnable(GL_CULL_FACE);
-        //     glEnable(GL_DEPTH_TEST);
-        //     glEnable(GL_LIGHTING);
-        //     glDisable(GL_POLYGON_OFFSET_LINE);
-        //     glMaterialfv(GL_FRONT_AND_BACK,GL_AMBIENT,object_color);
-        //     glMaterialf(GL_FRONT_AND_BACK,GL_SHININESS,123.0);
-        // break;
+        case MATTE:
+        	glEnable(GL_NORMALIZE);
+            glEnable(GL_LIGHTING);
+            glEnable(GL_LIGHT0);
+            glEnable(GL_DEPTH_TEST);
+            glMaterialfv(GL_FRONT,GL_AMBIENT,mat_ambient);
+            glMaterialfv(GL_FRONT,GL_DIFFUSE,mat_diffuse);
+            glMaterialfv(GL_FRONT,GL_SPECULAR,mat_specular);
+            glMaterialfv(GL_FRONT,GL_SHININESS,mat_shiness);
+         break;
  
     }
  
@@ -1105,37 +1263,9 @@ void motion(int x, int y)
 
 void drawCylinder()
 {
-	// glBegin(GL_POLYGON);
- //  	//plot points on the circle
- //  	for (int i=0; i < 720; i += 90)
- //    {
- //       float degInRad = i*PI/360;
- //       glVertex3f(cos(degInRad),sin(degInRad),1.0);
- //    }
- //    glEnd();
-
- //    glBegin(GL_POLYGON);
- //  	//plot points on the circle
- //  	for (int i=0; i < 720; i += 90)
- //    {
- //       float degInRad = i*PI/360;
- //       glVertex3f(cos(degInRad),sin(degInRad),-1.0);
- //    }
- //    glEnd();
-	float degInRad,NextDegInRad;
-   	glBegin(GL_QUADS);
-    for (int i=0; i < 630; i += 90)
-    {
-       degInRad = i*PI/360;
-       NextDegInRad = (i+90)*PI/360;
-       glVertex3f(cos(degInRad),sin(degInRad),1.0);
-       glVertex3f(cos(NextDegInRad),sin(NextDegInRad),1.0);
-       glVertex3f(cos(degInRad),sin(degInRad),-1.0);
-       glVertex3f(cos(NextDegInRad),sin(NextDegInRad),-1.0);
-    }
-    glEnd();
-
-
+    GLUquadricObj *quadratic;
+    quadratic = gluNewQuadric();
+    gluCylinder(quadratic,0.5,0.5,1.0f,16,1);
 }
 
 // Draw a unit cube, centered at the current location
@@ -1144,36 +1274,42 @@ void drawCube()
 {
 	glBegin(GL_QUADS);
 		// draw front face
+		glNormal3f( 0, 0, 1 );
 		glVertex3f(-1.0, -1.0, 1.0);
 		glVertex3f( 1.0, -1.0, 1.0);
 		glVertex3f( 1.0,  1.0, 1.0);
 		glVertex3f(-1.0,  1.0, 1.0);
 
 		// draw back face
+		glNormal3f( 0, 0, -1 );
 		glVertex3f( 1.0, -1.0, -1.0);
 		glVertex3f(-1.0, -1.0, -1.0);
 		glVertex3f(-1.0,  1.0, -1.0);
 		glVertex3f( 1.0,  1.0, -1.0);
 
 		// draw left face
+		glNormal3f( -1.0, 0, 0 );
 		glVertex3f(-1.0, -1.0, -1.0);
 		glVertex3f(-1.0, -1.0,  1.0);
 		glVertex3f(-1.0,  1.0,  1.0);
 		glVertex3f(-1.0,  1.0, -1.0);
 
 		// draw right face
+		glNormal3f( 1.0, 0, 0 );
 		glVertex3f( 1.0, -1.0,  1.0);
 		glVertex3f( 1.0, -1.0, -1.0);
 		glVertex3f( 1.0,  1.0, -1.0);
 		glVertex3f( 1.0,  1.0,  1.0);
 
 		// draw top
+		glNormal3f( 0, 1.0, 0 );
 		glVertex3f(-1.0,  1.0,  1.0);
 		glVertex3f( 1.0,  1.0,  1.0);
 		glVertex3f( 1.0,  1.0, -1.0);
 		glVertex3f(-1.0,  1.0, -1.0);
 
 		// draw bottom
+		glNormal3f( 0, -1.0, 0 );
 		glVertex3f(-1.0, -1.0, -1.0);
 		glVertex3f( 1.0, -1.0, -1.0);
 		glVertex3f( 1.0, -1.0,  1.0);

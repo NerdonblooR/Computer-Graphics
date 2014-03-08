@@ -1,0 +1,13 @@
+
+For the 3D modulue construction part, the method is pretty much the same as the one for assignment1.
+The body is served as the root of kinematic tree , head is the parent of neck, arm is the parent of elbow,
+shoulder is the parent of arm . In order to keep code short, a helper function is used to reduce the redundancy of drawing 
+both side of legs and arms.
+
+For implementing different  redering styles, a helper function is used to set up different rendering style based on the 
+selected option. For wireframe option , polygonmode should be set to gl_line and for solid option the polygonmode should be set
+to gl_fill.  Solid with outline style is difficult,  an offset need to be set in order to make solid elements have a larger depth,
+otherwise line elements will be blocked by solid elemets. If shiny metal style is chosen, then the shininess of robot's material should be as high as 
+possible. If matte style is chosen , then shininess of the material should be as low as possible.
+
+By updating keyframes, an animation is created to illustrate the implementation of light and DOF.

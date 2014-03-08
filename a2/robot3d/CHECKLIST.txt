@@ -2,8 +2,8 @@
 Assignment 2 Checklist/Grading sheet
 -------------------------------------
 
-Name: 
-Student ID:
+Name: Hao Tan
+Student ID: 997374345
 
 -----------------------------------------------------------------------------------------
 A. PLEASE ANSWER THE FOLLOWING QUESTIONS (your assignment will not be graded otherwise!)
@@ -13,12 +13,12 @@ A. PLEASE ANSWER THE FOLLOWING QUESTIONS (your assignment will not be graded oth
    Academic Honesty policy stated in 
    http://www.artsci.utoronto.ca/osai/students/academic-integrity-basics
 
-   ___Yes   ___No
+   Yes   
 
 
 2. I collaborated on this assignment with another student 
 
-   ___Yes   ___No
+   No
 
    If you checked yes, please supply the following
 
@@ -37,17 +37,17 @@ B. PLACE AN (X) IN FRONT OF PORTIONS OF THE ASSIGNMENT THAT YOU COMPLETED IN FUL
    WE WILL BE ABLE TO MAKE AN ACCURATE ASSESSMENT
 
    
-___   (10 points) Part 2a     3D robot design
+_X__   (10 points) Part 2a     3D robot design
                   
-___   (10 points) Part 2b     Basic polygon rendering
+_X__   (10 points) Part 2b     Basic polygon rendering
 
-___   ( 5 points) Part 2c     Rendering metallic and matte robot
+_X__   ( 5 points) Part 2c     Rendering metallic and matte robot
 
-___   (10 points) Part 2d     Light source control
+_X__   (10 points) Part 2d     Light source control
                   
-___   ( 5 points) Part 2e     Keyframe functionality & supplied keyframe file
+_X__   ( 5 points) Part 2e     Keyframe functionality & supplied keyframe file
 
-___   ( 5 points) Part 2f     Catmull-Rom interpolation functionality
+_X__   ( 5 points) Part 2f     Catmull-Rom interpolation functionality
 
 
 -------------------------------------------------------------------------------- 
