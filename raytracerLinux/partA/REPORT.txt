@@ -1,0 +1,90 @@
+The submission of A3 include two  parts: 
+1. simple raytracer implemented with the starter code 
+2. 3D snake game implemented with Three.js library which is a javascript 3D library.
+
+I did this assignment alone.
+
+=====================Basic Raytracer===================================
+
+things implemented:
+    
+    void Raytracer::render 
+        Part of the function is given in the starter code, the this left for us to do is
+        to construct a ray from each pixel of the image plane to the scene object. The
+        direction of the ray is decided by both the position of the eye and the
+        origin of the ray. the constructed ray will be passed to shade() function
+        and the colour returned by shade() will be filled into the rgb buffer.
+
+    bool UnitSquare::intersect
+        This function calculates the intersection of a given ray with a unit
+        square. First the ray origin and the ray dir is conveted into model space  by 
+        the wordToModel matrix.Then we find the intersection point of the ray
+        and the plane z=0. If the ray intersect with the unit square, both
+        x and y coordiantes of the intersection must fall between -0.5 and 0.5.
+        if the check fails, return false.
+
+    bool UnitSphere::intersect
+        Similar to the the intersect funtion of the unit squre, the ray dir and
+        ray origin is converted into the model space. the intersection satisfies
+        both f(t) = ray_origin + t*ray_dir and F(x,y,z)= x^2 + y^2 + z^2 = 1. it
+        can be found with simple calculation.
+
+    void PointLight::shade( Ray3D& ray )
+        Shade function implemented the classical phong shading algorithm, it
+        calculates the colour of the intersection of ray and scene object with
+        various parameters incluing colour of the material, normal of the
+        intersection, colour of the light and the direction of the ray. the
+        final colour is composed of three components: ambient part, diffuse part, and specular
+        part. Each part is calculated indepent from the other.
+
+=====================3D snake game=======================================
+
+    The submission includes:
+
+    Files written by myself:
+        snake.html (main program, most code written in javascript) 
+        key_status.js (jquery function that keeps track of the keyboard activity)
+
+    Resources located in scripts directory:
+        jquery.hotkeys.js (jquery keboard activity handler written by
+                John Resig)
+        jquery-1.4.1.min.js
+        Three.js (WebGL javascript 3D library)
+        Stats.js (The javascript code for displaying FPS, offered by github user mrdoob)
+    
+    The game has two modes with different control sets:
+    
+    Basic control for bird's view:
+
+        W/up arrow: make the snake move up
+        S/down arrow: make the snake move down
+        A/left arrow: make the snake move left
+        D/right arrow: make the snake move right
+
+        mouse wheel scroll up: zoom in
+        mouse wheel scroll down: zoom out
+        mouse drag: change view direction
+        
+        F: switch to third person shooter game view
+
+
+    Basic control for third person shooter game view:
+
+        A/left arrow: make the snake move left
+        D/right arrow: make the snake move right
+        
+        G: switch to bird's view
+
+    The game will continue until 1.the snake hits the game board boundary or 2. the snake head touches part of its body.
+    A checkbox will jump out when either 1 or 2 happens. click ok to close the window and the cancel to restart the game. 
+
+    Enjoy the game
+
+
+             
+
+        
+
+
+
+

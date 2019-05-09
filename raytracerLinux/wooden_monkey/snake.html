@@ -1,0 +1,439 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+	<title>SNAKE</title>
+	<script src="scripts/jquery-1.4.1.min.js"></script>
+	<script src="scripts/Three.js"></script>
+	<script src="scripts/jquery.hotkeys.js"></script>
+	<script src="scripts/key_status.js"></script>
+	<script src="scripts/Stats.js"></script>
+	<style>
+		body{
+			margin:0;
+			text-align:center;
+			overflow:hidden;
+			background-color:#000;
+		}	
+		
+	</style>
+</head>
+<body>
+
+<script>
+
+//secene related variable
+var renderder,scene,camera,camera_fp;
+var stats,container;
+var width=window.innerWidth;
+var height=window.innerHeight;
+var fov=90,aspect=width/height,near=200,far=5000;
+
+//game models
+var enemy = new Array();
+var snake = new Array();
+var food;
+var DIR = [[-1,0],[1,0],[0,1],[0,-1]];
+var dir = 0;
+var fps = false;
+var frame_num = 30;
+
+
+var snake_speed = 3;
+var loose = false;
+
+var isUserInteracting = false,
+	onMouseDownMouseX = 0, 
+	onMouseDownMouseY = 0,
+	lon = 0, onMouseDownLon = 0,
+	lat = 0, onMouseDownLat = 0,
+	phi = 0, theta = 0;
+var restart_game = false;
+var enemy_speed = 1;
+
+//initialize the game	
+init();
+//render each frame
+animate();
+
+//FUNCTION DEFINITION
+
+function init(){
+	//init the container
+	container=document.createElement('container');
+	
+	document.body.appendChild(container);
+	
+	//init the camera
+	camera=new THREE.PerspectiveCamera(fov,aspect,near,far);
+	camera.position.x= 800;
+	camera.position.y= 1000;
+	camera.position.z= 0;
+	camera.target = new THREE.Vector3(0,0,0);
+
+	scene = new THREE.Scene();
+	
+	//init light
+	light = new THREE.DirectionalLight( 0xffffff );
+	light.position.set( 0, 0, 1 ).normalize();
+	scene.add( light );
+
+	
+
+	//init snake 
+	for(var i=0;i<3;i++)
+	{
+		var geometry = new THREE.CubeGeometry(100,40,100);
+		material = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true, transparent: false});
+		snake[i] = new THREE.Mesh(geometry,material);
+		snake[i].position.x = i * 100;
+		snake[i].position.z = 0;
+		scene.add(snake[i]);
+
+	}
+
+
+	//init the camera_fps
+	camera_fps=new THREE.PerspectiveCamera(fov,aspect,near,far);
+	camera_fps.position.x= snake[2].position.x;
+	camera_fps.position.y= 500;
+	camera_fps.position.z= snake[2].position.z;
+	camera_fps.target = new THREE.Vector3(snake[0].position.x,0,snake[0].position.z);
+
+	//init food
+	var geometry = new THREE.SphereGeometry( 40, 20, 40 );
+	material = new THREE.MeshBasicMaterial({ color: 0xff0fff, wireframe: true, transparent: true, opacity: 0.8 });
+	food = new THREE.Mesh(geometry,material);
+	food.position.x=Math.random()*2000-1000;
+	food.position.z=Math.random()*2000-1000;
+	scene.add(food);
+	
+	//init renderer
+	renderer = new THREE.WebGLRenderer( { antialias: true } );
+	renderer.setSize(width,height);
+	
+	container.appendChild(renderer.domElement);
+	
+	//init Stats
+	stats=new Stats();
+	stats.domElement.style.position='absolute';
+	stats.domElement.style.top='0px';
+	container.appendChild(stats.domElement);
+
+	//init game boards
+	var geometry=new THREE.Geometry();
+	geometry.vertices.push(new THREE.Vertex(new THREE.Vector3(-1000,0,0)));
+	geometry.vertices.push(new THREE.Vertex(new THREE.Vector3(1000,0,0)));
+	var material=new THREE.LineBasicMaterial({color:0xffffff,opacity:0.5});
+	for(var i=0;i<=20;i++){
+		var line = new THREE.Line(geometry,material);
+		//draw vertical line
+		line.position.z=(i*100)-1000;
+		scene.add(line);
+		var line=new THREE.Line(geometry,material);
+		//draw horizontal line
+		line.position.x = (i*100)-1000;
+		line.rotation.y = 90*Math.PI/180;
+		scene.add(line);
+	}
+	
+	//add action listener to detect mouse activity
+	document.addEventListener( 'mousewheel', onDocumentMouseWheel, false );
+	document.addEventListener( 'mousedown', onDocumentMouseDown, false );
+	document.addEventListener( 'mousemove', onDocumentMouseMove, false );
+	document.addEventListener( 'mouseup', onDocumentMouseUp, false );
+	document.addEventListener( 'DOMMouseScroll', onDocumentMouseWheel, false);
+
+}
+
+function animate(){
+	setTimeout(animate,1000/50);
+	if(loose){
+		var r = window.confirm("You loose, Exit?");
+		if (r == true){
+			//exit the game
+			window.close();
+			
+		}else{
+			loose = false;
+			reinit_snake();
+			dir = 0;
+			frame_num = 30;
+		}
+	}
+	hit_self();
+	hit_wall();
+	hit_food();
+	render();
+	key();
+	stats.update();
+	frame_num++;
+}
+
+function render(){
+	snake_move(dir);
+	
+	lat = Math.max( - 90, Math.min( 90, lat ) );
+	phi = ( 90 - lat ) * Math.PI / 180;
+	theta = lon * Math.PI / 180;
+
+	if(fps){
+		camera_fps.position.x= snake[2].position.x;
+		camera_fps.position.y= 500;
+		camera_fps.position.z= snake[2].position.z;
+		camera_fps.target = new THREE.Vector3(snake[0].position.x,0,snake[0].position.z);
+		camera_fps.lookAt(camera_fps.target);
+		renderer.render(scene,camera_fps);
+	}else{
+		camera.target.x = 600 * Math.sin( phi ) * Math.cos( theta );
+		camera.target.y = 1000 * Math.cos( phi );
+		camera.target.z = 600 * Math.sin( phi ) * Math.sin( theta );
+		camera.lookAt(camera.target);
+		renderer.render(scene,camera);
+	}
+	
+
+}
+
+//re-initialize snake from the scene
+function reinit_snake(){
+	for(var i=0; i < snake.length;i++){
+		scene.remove(snake[i]);
+	}
+	for(var i=0;i<3;i++)
+	{
+		var geometry = new THREE.CubeGeometry(100,40,100);
+		material = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true, transparent: false});
+		snake[i] = new THREE.Mesh(geometry,material);
+		snake[i].position.x = i * 100;
+		snake[i].position.z = 0;
+		scene.add(snake[i]);
+
+	}
+}
+
+//moving the sanke
+function snake_move(){
+	var head = snake[0];
+	var previous_x = head.position.x;
+	var previous_z = head.position.z;
+	var rec_x;
+	var rec_z;
+	var dx = DIR[dir][0];
+	var dz = DIR[dir][1];
+	head.position.x += dx*snake_speed;
+	head.position.z += dz*snake_speed;
+	for(var i=1; i < snake.length;i++){
+		rec_x = snake[i].position.x;
+		rec_z = snake[i].position.z;
+
+		snake[i].position.x += snake_speed * (previous_x - rec_x)/100;
+		snake[i].position.z += snake_speed * (previous_z - rec_z)/100;
+
+
+		previous_x = rec_x;
+		previous_z = rec_z;
+	}
+}
+
+//test to see if sanke get the food
+function hit_food(){
+	var distance;
+	var dx,dz;
+	var head = snake[0];
+	s_x = head.position.x;
+	s_z = head.position.z;
+
+	f_x = food.position.x;
+	f_z = food.position.z;
+
+	dx = s_x - f_x;
+	dz = s_z - f_z;
+
+	distance =  dx*dx + dz*dz;
+	// increase the length of the snake and repose the food
+	if (distance < 5000){
+		food.position.x=Math.random()*2000-1000;
+		food.position.z=Math.random()*2000-1000;
+		var l = snake.length;
+		var geometry = new THREE.CubeGeometry(100,40,100);
+		material = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true, transparent: false});
+		snake[l] = new THREE.Mesh(geometry,material);
+		snake[l].x = snake[l -1].position.x;
+		snake[l].z = snake[l -1].position.z;
+		scene.add(snake[l]);
+	} 
+}
+
+//test to see if sanke hit the wall
+function hit_wall(){
+	var head = snake[0];
+	s_x = head.position.x;
+	s_z = head.position.z;
+
+	if(s_x > 950 || s_x < -950 || s_z < -950 || s_z > 950){
+		loose = true;
+	}
+
+}
+
+//test to see if the snake hit itself
+function hit_self(){
+	var head = snake[0];
+	var distance;
+	var dx,dz;
+	//x and z coordinate of the body part
+	var b_x,b_z;
+	h_x = head.position.x;
+	h_z = head.position.z;
+	
+
+	for(var i=1; i < snake.length;i++){
+		b_x = snake[i].position.x;
+		b_z = snake[i].position.z;
+
+		dx = h_x - b_x;
+		dz = h_z - b_z;
+		
+		distance =  dx*dx + dz*dz;
+		if (distance < 2000){
+			loose = true;
+		} 
+	}
+
+}
+
+
+
+function key(){
+	//only have move left or move right for first person mode
+	if (fps){
+		frame_num ++;
+		//mvoe left
+		if(keydown.left||keydown.a){
+			//move based on current dir
+			if(frame_num > 30){
+				frame_num = 0;
+				switch(dir)
+				{
+					case 0:
+					  dir = 2;
+					  break;
+					case 1:
+					  dir = 3;
+					  break;
+					case 2:
+					  dir = 1;
+					  break;
+					default:
+					  dir = 0;
+				}
+
+			}
+		}
+		//move right
+		if(keydown.right||keydown.d){
+			//move based on current dir
+			if(frame_num > 30){
+				frame_num = 0;
+				switch(dir)
+				{
+					case 0:
+					  dir = 3;
+					  break;
+					case 1:
+					  dir = 2;
+					  break;
+					case 2:
+					  dir = 0;
+					  break;
+					default:
+					  dir = 1;
+				}
+
+			}
+		}
+
+	}else{
+		if(keydown.up||keydown.w){
+			// current dir cannot be down
+			if (dir != 1){
+				dir = 0;
+			}
+			
+		}
+		//move down
+		if(keydown.down||keydown.s){
+			//cur dir cannot be up
+			if (dir != 0){
+				dir = 1;
+			}
+		}
+		//move left
+		if(keydown.left||keydown.a){
+			// cur dir cannot be left
+			if (dir != 3){
+				dir = 2;
+			}
+		}
+		//move right
+		if(keydown.right||keydown.d){
+			//cur dir cannot be right
+			if (dir != 2){
+				dir = 3;
+			}
+		}
+	}
+
+	//change camera
+	if(keydown.f){
+		fps = true;
+	}
+
+	if(keydown.g){
+		fps = false;
+	}
+}
+
+function onDocumentMouseWheel( event ) {
+
+// WebKit
+if ( event.wheelDeltaY ) {
+	camera.fov -= event.wheelDeltaY * 0.05;
+// Opera / Explorer 9
+}else if ( event.wheelDelta ) {
+	camera.fov -= event.wheelDelta * 0.05;
+// Firefox
+} else if ( event.detail ) {
+	camera.fov -= event.detail * 0.05;
+}	camera.updateProjectionMatrix();
+	render();
+}
+
+function onDocumentMouseDown( event ) {
+
+	event.preventDefault();
+	isUserInteracting = true;
+	//record x, y of mouse position
+	onPointerDownPointerX = event.clientX;
+	onPointerDownPointerY = event.clientY;
+	onPointerDownLon = lon;
+	onPointerDownLat = lat;
+}
+
+function onDocumentMouseMove( event ) {
+
+	if ( isUserInteracting ) {
+		lon = ( onPointerDownPointerX - event.clientX ) * 0.1 + onPointerDownLon;
+		lat = ( event.clientY - onPointerDownPointerY ) * 0.1 + onPointerDownLat;
+	}
+}
+
+function onDocumentMouseUp( event ) {
+	isUserInteracting = false;
+}
+
+</script>
+</body>
+</html>
